@@ -1,25 +1,12 @@
 import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { Pool } from "pg";
+import { sql } from "kysely";
 import routes from "./routes";
+import { db } from "./db";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const  getDatabaseUrl = (): string | undefined => {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-
-  const { POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB } = process.env;
-  if (!POSTGRES_USER || !POSTGRES_PASSWORD || !POSTGRES_DB) return undefined;
-
-  const host = process.env.POSTGRES_HOST ?? "localhost";
-  const port = process.env.POSTGRES_PORT ?? "5432";
-  return `postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${host}:${port}/${POSTGRES_DB}`;
-}
-
-const databaseUrl = getDatabaseUrl();
-const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : undefined;
 
 app.use(cors());
 app.use(express.json());
@@ -30,7 +17,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.get("/health/db", async (_req: Request, res: Response) => {
-  if (!pool) {
+  if (!db) {
     res.status(503).json({
       ok: false,
       error: "Database not configured",
@@ -38,7 +25,7 @@ app.get("/health/db", async (_req: Request, res: Response) => {
     return;
   }
   try {
-    const result = await pool.query<{ ok: number }>("SELECT 1 AS ok");
+    const result = await sql<{ ok: number }>`SELECT 1 AS ok`.execute(db);
     res.json({ ok: true, db: result.rows[0] });
   } catch (err) {
     console.error(err);
